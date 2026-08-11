@@ -1,0 +1,2 @@
+left-pad 1.0
+is-even 2.0

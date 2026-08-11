@@ -1,0 +1,1 @@
+guide: how the showcase pipeline maps to PipeMesh features

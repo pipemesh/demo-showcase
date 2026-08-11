@@ -1,0 +1,9 @@
+# Weekly scheduled workflow (on_schedule) — runs independent of pushes.
+stages: [health]
+
+jobs:
+  heartbeat:
+    stage: health
+    script: |
+      echo "weekly health check at $(date -u)"
+      test -f app/main.txt

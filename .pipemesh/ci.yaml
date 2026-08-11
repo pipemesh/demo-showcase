@@ -1,0 +1,27 @@
+# The verify workflow — one terminal run per revision under the `ci`
+# trigger node, and the same body serves PR checks (on_pull_request).
+stages: [checks]
+
+jobs:
+  lint:
+    stage: checks
+    script: |
+      echo "linting app sources"
+      grep -q "main:" app/main.txt
+
+  unit:
+    stage: checks
+    setup:
+      - uses: ./.pipemesh/components/announce.yaml
+        with:
+          message: unit suite starting
+    script: |
+      echo "running unit suite"
+      test -s app/deps.txt
+
+  layout:
+    stage: checks
+    script: |
+      echo "verifying repo layout"
+      test -f pipemesh.yaml
+      test -d docs

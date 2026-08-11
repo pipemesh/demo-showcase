@@ -1,0 +1,98 @@
+# demo-showcase — one pipeline touring the PipeMesh feature surface.
+# Fake project, real runs; every node exists to demonstrate a feature.
+# The README maps each job to what it shows.
+app: demo-showcase
+
+pipeline:
+  stages: [verify, build, ship]
+
+  jobs:
+    # One fused CI node: the whole verify DAG runs as a child workflow
+    # per revision and settles with a single verdict (V16 trigger node).
+    ci:
+      stage: verify
+      trigger:
+        workflow: .pipemesh/ci.yaml
+        strategy: depend
+
+    # Changed-path rules + dependency cache + artifact production. The
+    # implicit stage gate on `verify` means bundle waits for ci.
+    bundle:
+      stage: build
+      timeout_seconds: 900
+      rules:
+        - changes: [app/**, .pipemesh/**, pipemesh.yaml]
+      cache:
+        key: deps-${checksum:app/deps.txt}
+        paths: [.deps/**]
+      artifacts:
+        paths: ["dist/**"]
+        expire: "14d"
+      script: |
+        echo "restoring dependencies (cache keyed on app/deps.txt)"
+        mkdir -p .deps && cp app/deps.txt .deps/resolved.txt
+        echo "bundling"
+        mkdir -p dist
+        cat app/main.txt app/deps.txt > dist/bundle.txt
+        echo "built-from: $CI_COMMIT_SHA" >> dist/bundle.txt
+
+    # allow_failure: a red docs check must never block shipping.
+    docs:
+      stage: build
+      allow_failure: true
+      rules:
+        - changes: [docs/**]
+      script: |
+        echo "checking docs"
+        test -f docs/guide.txt
+
+    # Matrix as: jobs — regional test lanes, each inheriting the bundle
+    # artifact along its own needs edge.
+    regional_test:
+      stage: build
+      matrix:
+        region: [us, eu]
+      needs: [bundle]
+      script: |
+        echo "testing bundle in ${{ matrix.region }}"
+        grep -q "demo application" dist/bundle.txt
+
+    # Lane-to-lane promotion (each region deploys only what ITS lane
+    # tested) + a local typed component invoked via setup:/with: — note
+    # the param value carrying a ${{ matrix.* }} reference: components
+    # expand first, matrix interpolates the result.
+    deploy:
+      stage: ship
+      matrix:
+        region: [us, eu]
+      needs:
+        - regional_test[region=${{ matrix.region }}]
+      setup:
+        - uses: ./.pipemesh/components/announce.yaml
+          with:
+            message: deploying to ${{ matrix.region }}
+      script: |
+        echo "deploy to ${{ matrix.region }} complete"
+
+    # DESIGN-V32 approval gate: the run executes, then PARKS pending a
+    # human decision — and a parked lane freezes (newer revisions queue
+    # behind it instead of superseding). Approve it in the UI to promote.
+    signoff:
+      stage: ship
+      approval: true
+      needs: [bundle]
+      script: |
+        echo "release summary for $CI_COMMIT_SHA:"
+        cat dist/bundle.txt || echo "(no bundle inherited — docs-only revision)"
+        echo "a human decides from here"
+
+# PR checks: the same verify workflow runs per pull request, statuses
+# land on the PR (pipemesh/checks/*).
+on_pull_request:
+  checks: .pipemesh/ci.yaml
+
+# Scheduled workflow — Mondays 08:00 UTC, independent of pushes.
+on_schedule:
+  weekly_health:
+    cron: "0 8 * * 1"
+    run: .pipemesh/health.yaml
