@@ -23,3 +23,5 @@ docs-only revision.
 Related demos: [`demo-matrix`](https://github.com/pipemesh/demo-matrix)
 (matrix in depth, both modes, break/heal lane demos); `demo-private`
 (private on purpose — the regression surface for authenticated paths).
+
+_Trigger provenance demo: this PR exists to exercise the pull_request source._
