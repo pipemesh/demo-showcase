@@ -67,6 +67,7 @@ pipeline:
         region: [us, eu]
       needs:
         - regional_test[region=${{ matrix.region }}]
+        - bundle   # artifacts flow along direct needs edges only
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
