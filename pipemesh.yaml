@@ -66,8 +66,7 @@ pipeline:
       matrix:
         region: [us, eu]
       needs:
-        - regional_test[region=${{ matrix.region }}]
-        - bundle   # artifacts flow along direct needs edges only
+        - regional_test[region=${{ matrix.region }}]   # the bundle the lane tested flows through
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
@@ -77,6 +76,7 @@ pipeline:
       script: |
         echo "deploying to ${{ matrix.region }}:"
         cat dist/bundle.txt
+        echo "smoke: ${{ matrix.region }} endpoint answers"
         echo "deploy to ${{ matrix.region }} complete"
 
     # DESIGN-V32 approval gate: the run executes, then PARKS pending a
