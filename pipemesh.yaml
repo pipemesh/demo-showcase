@@ -71,7 +71,11 @@ pipeline:
         - uses: ./.pipemesh/components/announce.yaml
           with:
             message: deploying to ${{ matrix.region }}
+      # The deploy log says WHAT it ships — the bundle's version line and
+      # the sha it was built from — so a rollback is visible in the log.
       script: |
+        echo "deploying to ${{ matrix.region }}:"
+        cat dist/bundle.txt
         echo "deploy to ${{ matrix.region }} complete"
 
     # DESIGN-V32 approval gate: the run executes, then PARKS pending a
