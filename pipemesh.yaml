@@ -79,18 +79,6 @@ pipeline:
         echo "smoke: ${{ matrix.region }} endpoint answers"
         echo "deploy to ${{ matrix.region }} complete"
 
-    # DESIGN-V32 approval gate: the run executes, then PARKS pending a
-    # human decision — and a parked lane freezes (newer revisions queue
-    # behind it instead of superseding). Approve it in the UI to promote.
-    signoff:
-      stage: ship
-      approval: true
-      needs: [bundle]
-      script: |
-        echo "release summary for $CI_COMMIT_SHA:"
-        cat dist/bundle.txt || echo "(no bundle inherited — docs-only revision)"
-        echo "a human decides from here"
-
 # PR checks: the same verify workflow runs per pull request, statuses
 # land on the PR (pipemesh/checks/*).
 on_pull_request:
