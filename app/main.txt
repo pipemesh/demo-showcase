@@ -1,1 +1,1 @@
-main: demo application content v5 (on DSQL)
+main: demo application content v6 (typed schema)
