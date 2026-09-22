@@ -15,6 +15,16 @@ pipeline:
         workflow: .pipemesh/ci.yaml
         strategy: depend
 
+    # allow_failure: a red docs check must never block shipping.
+    docs:
+      stage: build
+      allow_failure: true
+      rules:
+        - changes: [docs/**]
+      script: |
+        echo "checking docs"
+        test -f docs/guide.txt
+
     # Changed-path rules + dependency cache + artifact production. The
     # implicit stage gate on `verify` means bundle waits for ci.
     bundle:
@@ -35,16 +45,6 @@ pipeline:
         mkdir -p dist
         cat app/main.txt app/deps.txt > dist/bundle.txt
         echo "built-from: $CI_COMMIT_SHA" >> dist/bundle.txt
-
-    # allow_failure: a red docs check must never block shipping.
-    docs:
-      stage: build
-      allow_failure: true
-      rules:
-        - changes: [docs/**]
-      script: |
-        echo "checking docs"
-        test -f docs/guide.txt
 
     # Matrix as: jobs — regional test lanes, each inheriting the bundle
     # artifact along its own needs edge.
