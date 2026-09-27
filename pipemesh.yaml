@@ -1,8 +1,6 @@
 # demo-showcase — one pipeline touring the PipeMesh feature surface.
 # Fake project, real runs; every node exists to demonstrate a feature.
 # The README maps each job to what it shows.
-app: demo-showcase
-
 pipeline:
   stages: [verify, build, ship]
 
@@ -11,9 +9,10 @@ pipeline:
     # per revision and settles with a single verdict (V16 trigger node).
     ci:
       stage: verify
-      trigger:
-        workflow: .pipemesh/ci.yaml
-        strategy: depend
+      delegate:
+        type: workflow
+        params:
+          body: !include .pipemesh/ci.yaml
 
     # allow_failure: a red docs check must never block shipping.
     docs:
@@ -79,13 +78,12 @@ pipeline:
         echo "smoke: ${{ matrix.region }} endpoint answers"
         echo "deploy to ${{ matrix.region }} complete"
 
-# PR checks: the same verify workflow runs per pull request, statuses
-# land on the PR (pipemesh/checks/*).
-on_pull_request:
-  checks: !include .pipemesh/ci.yaml
-
-# Scheduled workflow — Mondays 08:00 UTC, independent of pushes.
-on_schedule:
-  weekly_health:
-    cron: "0 8 * * 1"
-    run: !include .pipemesh/health.yaml
+pipemesh:
+  pipelines:
+    pipeline: !ref pipeline
+  workflows:
+    # PR checks: the same verify workflow runs per pull request, statuses
+    # land on the PR (pipemesh/checks/*).
+    checks: { body: !include .pipemesh/ci.yaml, on: pull_request }
+    # Scheduled workflow — Mondays 08:00 UTC, independent of pushes.
+    weekly_health: { body: !include .pipemesh/health.yaml, on: schedule, cron: "0 8 * * 1" }
