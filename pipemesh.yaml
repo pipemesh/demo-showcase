@@ -34,9 +34,8 @@ pipeline:
       cache:
         key: deps-${checksum:app/deps.txt}
         paths: [.deps/**]
-      artifacts:
-        paths: ["dist/**"]
-        expire: "14d"
+      produces:
+        dist: { path: dist, expire: 14d }
       script: |
         echo "restoring dependencies (cache keyed on app/deps.txt)"
         mkdir -p .deps && cp app/deps.txt .deps/resolved.txt
@@ -45,13 +44,12 @@ pipeline:
         cat app/main.txt app/deps.txt > dist/bundle.txt
         echo "built-from: $CI_COMMIT_SHA" >> dist/bundle.txt
 
-    # Matrix as: jobs — regional test lanes, each inheriting the bundle
-    # artifact along its own needs edge.
+    # Matrix as: jobs — regional test lanes, each consuming the bundle.
     regional_test:
       stage: build
       matrix:
         region: [us, eu]
-      needs: [bundle]
+      consumes: [bundle/dist]
       script: |
         echo "testing bundle in ${{ matrix.region }}"
         grep -q "demo application" dist/bundle.txt
@@ -65,7 +63,8 @@ pipeline:
       matrix:
         region: [us, eu]
       needs:
-        - regional_test[region=${{ matrix.region }}]   # the bundle the lane tested flows through
+        - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
+      consumes: [bundle/dist]
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
