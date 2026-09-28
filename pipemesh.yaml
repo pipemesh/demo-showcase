@@ -17,6 +17,7 @@ pipeline:
     # allow_failure: a red docs check must never block shipping.
     docs:
       stage: build
+      needs: [ci]
       allow_failure: true
       rules:
         - changes: [docs/**]
@@ -28,6 +29,7 @@ pipeline:
     # implicit stage gate on `verify` means bundle waits for ci.
     bundle:
       stage: build
+      needs: [ci]
       timeout_seconds: 900
       rules:
         - changes: [app/**, .pipemesh/**, pipemesh.yaml]
