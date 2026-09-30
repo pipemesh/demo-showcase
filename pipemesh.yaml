@@ -25,8 +25,8 @@ pipeline:
         echo "checking docs"
         test -f docs/guide.txt
 
-    # Changed-path rules + dependency cache + artifact production. The
-    # implicit stage gate on `verify` means bundle waits for ci.
+    # Changed-path rules + dependency cache + artifact production. bundle
+    # waits for ci because it names it in needs.
     bundle:
       stage: build
       needs: [ci]
@@ -52,6 +52,8 @@ pipeline:
       matrix:
         region: [us, eu]
       consumes: [bundle/dist]
+      # A job decides by its own rules: test a bundle new to this lane.
+      rules: [{ consumed: changed }]
       script: |
         echo "testing bundle in ${{ matrix.region }}"
         grep -q "demo application" dist/bundle.txt
@@ -67,6 +69,7 @@ pipeline:
       needs:
         - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
       consumes: [bundle/dist]
+      rules: [{ consumed: changed }]   # ship a bundle new to this region
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
