@@ -19,7 +19,7 @@ pipeline:
       stage: build
       needs: [ci]
       allow_failure: true
-      sources: [docs/**]
+      paths: [docs]
       script: |
         echo "checking docs"
         test -f docs/guide.txt
@@ -31,7 +31,7 @@ pipeline:
       stage: build
       needs: [ci]
       timeout_seconds: 900
-      sources: [app/**]
+      paths: [app]
       skip: built
       cache:
         key: deps-${checksum:app/deps.txt}
@@ -52,8 +52,8 @@ pipeline:
       matrix:
         region: [us, eu]
       consumes: [bundle/dist]
-      # sources: []: it reads only the bundle, so it tests a bundle new to this lane.
-      sources: []
+      # paths: []: it reads only the bundle, so it tests a bundle new to this lane.
+      paths: []
       script: |
         echo "testing bundle in ${{ matrix.region }}"
         grep -q "demo application" dist/bundle.txt
@@ -69,7 +69,7 @@ pipeline:
       needs:
         - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
       consumes: [bundle/dist]
-      sources: []   # ship a bundle new to this region
+      paths: []   # ship a bundle new to this region
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
