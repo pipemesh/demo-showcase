@@ -19,20 +19,20 @@ pipeline:
       stage: build
       needs: [ci]
       allow_failure: true
-      rules:
-        - changes: [docs/**]
+      sources: [docs/**]
       script: |
         echo "checking docs"
         test -f docs/guide.txt
 
-    # Changed-path rules + dependency cache + artifact production. bundle
-    # waits for ci because it names it in needs.
+    # Sources + dependency cache + artifact production. skip: built: a
+    # revision whose app/ was bundled before (a revert) reuses that
+    # bundle. bundle waits for ci because it names it in needs.
     bundle:
       stage: build
       needs: [ci]
       timeout_seconds: 900
-      rules:
-        - changes: [app/**, .pipemesh/**, pipemesh.yaml]
+      sources: [app/**]
+      skip: built
       cache:
         key: deps-${checksum:app/deps.txt}
         paths: [.deps/**]
@@ -52,8 +52,8 @@ pipeline:
       matrix:
         region: [us, eu]
       consumes: [bundle/dist]
-      # A job decides by its own rules: test a bundle new to this lane.
-      rules: [{ consumed: changed }]
+      # sources: []: it reads only the bundle, so it tests a bundle new to this lane.
+      sources: []
       script: |
         echo "testing bundle in ${{ matrix.region }}"
         grep -q "demo application" dist/bundle.txt
@@ -69,7 +69,7 @@ pipeline:
       needs:
         - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
       consumes: [bundle/dist]
-      rules: [{ consumed: changed }]   # ship a bundle new to this region
+      sources: []   # ship a bundle new to this region
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
