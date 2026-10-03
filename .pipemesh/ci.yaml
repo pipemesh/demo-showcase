@@ -4,13 +4,17 @@ stages: [checks]
 
 jobs:
   lint:
+    kind: build
     stage: checks
+    checkout: [app]
     script: |
       echo "linting app sources"
       grep -q "main:" app/main.txt
 
   unit:
+    kind: build
     stage: checks
+    checkout: [app]
     setup:
       - uses: ./.pipemesh/components/announce.yaml
         with:
@@ -20,7 +24,9 @@ jobs:
       test -s app/deps.txt
 
   layout:
+    kind: build
     stage: checks
+    checkout: [pipemesh.yaml, docs]
     script: |
       echo "verifying repo layout"
       test -f pipemesh.yaml

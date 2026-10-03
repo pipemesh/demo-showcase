@@ -3,7 +3,9 @@ stages: [health]
 
 jobs:
   heartbeat:
+    kind: task
     stage: health
+    checkout: [app]
     script: |
       echo "weekly health check at $(date -u)"
       test -f app/main.txt
