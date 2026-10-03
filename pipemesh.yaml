@@ -1,38 +1,39 @@
 # demo-showcase — one pipeline touring the PipeMesh feature surface.
 # Fake project, real runs; every node exists to demonstrate a feature.
-# The README maps each job to what it shows.
+# The README maps each job to what it shows. Every job says what it is
+# (kind:) and what it reads (checkout:); the kind sets the defaults.
 pipeline:
   stages: [verify, build, ship]
 
   jobs:
     # One fused CI node: the whole verify DAG runs as a child workflow
-    # per revision and settles with a single verdict (V16 trigger node).
+    # per revision and settles with a single verdict. It reads what its
+    # jobs read, so a revision none of them reads passes it by.
     ci:
+      kind: workflow
       stage: verify
-      delegate:
-        type: workflow
-        params:
-          body: !include .pipemesh/ci.yaml
+      body: !include .pipemesh/ci.yaml
 
     # allow_failure: a red docs check must never block shipping.
     docs:
+      kind: build
       stage: build
       needs: [ci]
       allow_failure: true
-      paths: [docs]
+      checkout: [docs]
       script: |
         echo "checking docs"
         test -f docs/guide.txt
 
-    # Sources + dependency cache + artifact production. skip: built: a
-    # revision whose app/ was bundled before (a revert) reuses that
+    # Checkout + dependency cache + artifact production. A build reuses:
+    # a revision whose app/ was bundled before (a revert) takes that
     # bundle. bundle waits for ci because it names it in needs.
     bundle:
+      kind: build
       stage: build
       needs: [ci]
       timeout_seconds: 900
-      paths: [app]
-      skip: built
+      checkout: [app]
       cache:
         key: deps-${checksum:app/deps.txt}
         paths: [.deps/**]
@@ -47,13 +48,15 @@ pipeline:
         echo "built-from: $CI_COMMIT_SHA" >> dist/bundle.txt
 
     # Matrix as: jobs — regional test lanes, each consuming the bundle.
+    # A test is a build that checks out nothing here: it reads only the
+    # bundle, so a bundle this lane already tested reuses that run.
     regional_test:
+      kind: build
       stage: build
       matrix:
         region: [us, eu]
       consumes: [bundle/dist]
-      # paths: []: it reads only the bundle, so it tests a bundle new to this lane.
-      paths: []
+      checkout: false
       script: |
         echo "testing bundle in ${{ matrix.region }}"
         grep -q "demo application" dist/bundle.txt
@@ -63,13 +66,13 @@ pipeline:
     # the param value carrying a ${{ matrix.* }} reference: components
     # expand first, matrix interpolates the result.
     deploy:
+      kind: deploy   # checks out nothing; ships a bundle new to its region
       stage: ship
       matrix:
         region: [us, eu]
       needs:
         - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
       consumes: [bundle/dist]
-      paths: []   # ship a bundle new to this region
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
