@@ -81,6 +81,7 @@ pipeline:
     # expand first, matrix interpolates the result.
     deploy:
       job_type: deploy # checks out nothing; ships a bundle new to its region
+      production: true
       stage: ship
       matrix:
         region:
