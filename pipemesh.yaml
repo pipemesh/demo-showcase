@@ -1,26 +1,32 @@
 # demo-showcase — one pipeline touring the PipeMesh feature surface.
 # Fake project, real runs; every node exists to demonstrate a feature.
 # The README maps each job to what it shows. Every job says what it is
-# (kind:) and what it reads (checkout:); the kind sets the defaults.
+# (job_type:) and what it reads (checkout:); the job type sets the defaults.
 pipeline:
-  stages: [verify, build, ship]
+  type: pipeline
+  stages:
+    - verify
+    - build
+    - ship
 
   jobs:
     # One fused CI node: the whole verify DAG runs as a child workflow
     # per revision and settles with a single verdict. It reads what its
     # jobs read, so a revision none of them reads passes it by.
     ci:
-      kind: workflow
+      job_type: workflow
       stage: verify
       body: !include .pipemesh/ci.yaml
 
     # allow_failure: a red docs check must never block shipping.
     docs:
-      kind: build
+      job_type: build
       stage: build
-      needs: [ci]
+      needs:
+        - ci
       allow_failure: true
-      checkout: [docs]
+      checkout:
+        - docs
       script: |
         echo "checking docs"
         test -f docs/guide.txt
@@ -29,16 +35,21 @@ pipeline:
     # a revision whose app/ was bundled before (a revert) takes that
     # bundle. bundle waits for ci because it names it in needs.
     bundle:
-      kind: build
+      job_type: build
       stage: build
-      needs: [ci]
+      needs:
+        - ci
       timeout_seconds: 900
-      checkout: [app]
+      checkout:
+        - app
       cache:
         key: deps-${checksum:app/deps.txt}
-        paths: [.deps/**]
+        paths:
+          - .deps/**
       produces:
-        dist: { path: dist, expire: 14d }
+        dist:
+          path: dist
+          expire: 14d
       script: |
         echo "restoring dependencies (cache keyed on app/deps.txt)"
         mkdir -p .deps && cp app/deps.txt .deps/resolved.txt
@@ -51,11 +62,14 @@ pipeline:
     # A test is a build that checks out nothing here: it reads only the
     # bundle, so a bundle this lane already tested reuses that run.
     regional_test:
-      kind: build
+      job_type: build
       stage: build
       matrix:
-        region: [us, eu]
-      consumes: [bundle/dist]
+        region:
+          - us
+          - eu
+      consumes:
+        - bundle/dist
       checkout: false
       script: |
         echo "testing bundle in ${{ matrix.region }}"
@@ -66,13 +80,16 @@ pipeline:
     # the param value carrying a ${{ matrix.* }} reference: components
     # expand first, matrix interpolates the result.
     deploy:
-      kind: deploy   # checks out nothing; ships a bundle new to its region
+      job_type: deploy # checks out nothing; ships a bundle new to its region
       stage: ship
       matrix:
-        region: [us, eu]
+        region:
+          - us
+          - eu
       needs:
         - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
-      consumes: [bundle/dist]
+      consumes:
+        - bundle/dist
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
@@ -91,6 +108,11 @@ pipemesh:
   workflows:
     # PR checks: the same verify workflow runs per pull request, statuses
     # land on the PR (pipemesh/checks/*).
-    checks: { body: !include .pipemesh/ci.yaml, on: pull_request }
+    checks:
+      body: !include .pipemesh/ci.yaml
+      on: pull_request
     # Scheduled workflow — Mondays 08:00 UTC, independent of pushes.
-    weekly_health: { body: !include .pipemesh/health.yaml, on: schedule, cron: "0 8 * * 1" }
+    weekly_health:
+      body: !include .pipemesh/health.yaml
+      on: schedule
+      cron: "0 8 * * 1"
