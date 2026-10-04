@@ -1,9 +1,12 @@
 # Local typed component (format decision 2026-08-10): declared params,
 # pure composition — the job that uses: this owns placement, the
 # component owns execution. Shown in the deploy lanes via setup:/with:.
-component: announce
+type: component
+name: announce
 params:
-  message: { type: string, required: true }
+  message:
+    type: string
+    required: true
 job:
   script: |
     echo "[announce] ${{ params.message }}"
