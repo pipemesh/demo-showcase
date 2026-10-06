@@ -1,4 +1,4 @@
-# demo-showcase — one pipeline touring the PipeMesh feature surface.
+# demo-showcase — one pipeline touring the Pipemesh feature surface.
 # Fake project, real runs; every node exists to demonstrate a feature.
 # The README maps each job to what it shows. Every job says what it is
 # (job_type:) and what it reads (checkout:); the job type sets the defaults.
@@ -7,6 +7,7 @@ pipeline:
   stages:
     - verify
     - build
+    - staging
     - ship
 
   jobs:
@@ -18,24 +19,12 @@ pipeline:
       stage: verify
       body: !include .pipemesh/ci.yaml
 
-    # allow_failure: a red docs check must never block shipping.
-    docs:
-      job_type: build
-      stage: build
-      needs:
-        - ci
-      allow_failure: true
-      checkout:
-        - docs
-      script: |
-        echo "checking docs"
-        test -f docs/guide.txt
-
     # Checkout + dependency cache + artifact production. A build reuses:
     # a revision whose app/ was bundled before (a revert) takes that
     # bundle. bundle waits for ci because it names it in needs.
     bundle:
       job_type: build
+      runner: showcase
       stage: build
       needs:
         - ci
@@ -63,6 +52,7 @@ pipeline:
     # bundle, so a bundle this lane already tested reuses that run.
     regional_test:
       job_type: build
+      runner: showcase
       stage: build
       matrix:
         region:
@@ -71,16 +61,70 @@ pipeline:
       consumes:
         DIST: bundle/dist
       checkout: false
+      # Each lane's own report, titled by its region.
+      reports:
+        results:
+          path: results.md
+          title: "Tests (${{ matrix.region }})"
+          expire: 1d
       script: |
         echo "testing bundle in ${{ matrix.region }}"
+        { echo "# Bundle tested in ${{ matrix.region }}"; echo
+          echo "Built from \`$(sed -n 's/^built-from: //p' dist/bundle.txt | cut -c1-8)\`."; echo
+          echo '```'; cat dist/bundle.txt; echo '```'; } > results.md
         grep -q "demo application" dist/bundle.txt
 
+    # Staging per region: each lane stages only what ITS test lane passed,
+    # then smoke-tests the region's greeting. A bundle missing a region's
+    # greeting fails that lane's staging and stops there; the other lane
+    # ships on. The next good revision supersedes the failed one.
+    deploy_staging:
+      job_type: deploy
+      runner: showcase
+      production: false # a staging environment
+      stage: staging
+      matrix:
+        region:
+          - us
+          - eu
+      needs:
+        - regional_test[region=${{ matrix.region }}]
+      consumes:
+        DIST: bundle/dist
+      # An image report: the smoke probes' response times as an SVG chart,
+      # drawn before the verdict, so the failing lane shows its red one.
+      reports:
+        smoke:
+          path: smoke.svg
+          title: "Smoke (${{ matrix.region }})"
+          expire: 1d
+      script: |
+        r=${{ matrix.region }}
+        echo "deploying to staging-$r:"
+        cat dist/bundle.txt
+        echo "smoke: staging-$r answers"
+        ok=1; greeting=$(sed -n "s/^greeting\[$r\]: //p" dist/bundle.txt); [ -n "$greeting" ] || ok=
+        color=$([ -n "$ok" ] && echo '#1a7f37' || echo '#cf222e')
+        bars= i=0
+        for d in $(echo "$CI_COMMIT_SHA" | cut -c1-8 | fold -w1); do
+          ms=$(( 20 + $(printf '%d' "0x$d") * 4 )); x=$((40 + i * 44))
+          if [ -n "$ok" ]; then bars="$bars<rect x=\"$x\" y=\"$((150 - ms))\" width=\"30\" height=\"$ms\" fill=\"$color\"/><text x=\"$((x + 15))\" y=\"166\" text-anchor=\"middle\">$ms</text>"
+          else bars="$bars<text x=\"$((x + 15))\" y=\"150\" text-anchor=\"middle\" font-size=\"16\" fill=\"$color\">×</text>"; fi
+          i=$((i + 1))
+        done
+        label=$([ -n "$ok" ] && echo "staging-$r answers: $greeting" || echo "staging-$r: no greeting, smoke failed")
+        printf '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" font-family="system-ui,sans-serif" font-size="11"><rect width="400" height="200" fill="#fff"/><text x="20" y="22" font-size="14" fill="%s">%s</text><text x="20" y="190" fill="#666">8 probes, response time in ms</text>%s</svg>\n' \
+          "$color" "$label" "$bars" > smoke.svg
+        [ -n "$ok" ] || { echo "staging-$r: no greeting in the bundle"; exit 1; }
+        echo "staging-$r healthy"
+
     # Lane-to-lane promotion (each region deploys only what ITS lane
-    # tested) + a local typed component invoked via setup:/with: — note
+    # staged) + a local typed component invoked via setup:/with: — note
     # the param value carrying a ${{ matrix.* }} reference: components
     # expand first, matrix interpolates the result.
     deploy:
       job_type: deploy # checks out nothing; ships a bundle new to its region
+      runner: showcase
       production: true
       stage: ship
       matrix:
@@ -88,7 +132,7 @@ pipeline:
           - us
           - eu
       needs:
-        - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
+        - deploy_staging[region=${{ matrix.region }}]   # only what this region's staging passed ships
       consumes:
         DIST: bundle/dist
       setup:
