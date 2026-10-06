@@ -1,3 +1,2 @@
 main: demo application content v8 (faster checkout)
 greeting[us]: hi there
-greeting[eu]: hallo
