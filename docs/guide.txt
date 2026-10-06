@@ -1,3 +1,0 @@
-guide: how the showcase pipeline maps to PipeMesh features
-
-The main branch merges through GitHub's merge queue; PipeMesh checks each queued group.
