@@ -5,7 +5,9 @@ stages:
 
 jobs:
   heartbeat:
+    # A task: the check is the point of every run, so it runs every time.
     job_type: task
+    runner: showcase
     stage: health
     checkout:
       - app

@@ -7,15 +7,26 @@ stages:
 jobs:
   lint:
     job_type: build
+    runner: showcase
     stage: checks
     checkout:
       - app
+    # A report in Markdown: what lint checked, in the job panel's Reports
+    # tab. Reports upload whatever the outcome and fail nothing.
+    reports:
+      lint:
+        path: lint.md
+        title: Lint
+        expire: 1d
     script: |
       echo "linting app sources"
+      { echo "# Lint: app/"; echo; echo "| File | Lines | Result |"; echo "|---|---:|---|"
+        for f in app/*.txt; do echo "| \`$f\` | $(wc -l < "$f" | tr -d ' ') | ✅ clean |"; done; } > lint.md
       grep -q "main:" app/main.txt
 
   unit:
     job_type: build
+    runner: showcase
     stage: checks
     checkout:
       - app
@@ -23,17 +34,46 @@ jobs:
       - uses: ./.pipemesh/components/announce.yaml
         with:
           message: unit suite starting
+    # Two reports: the suite's results as a site (a directory with an
+    # index.html, shown sandboxed) and the same results as JUnit XML (any
+    # other file is offered as a download).
+    reports:
+      tests:
+        path: reports/unit
+        title: Unit tests
+        expire: 1d
+      junit:
+        path: reports/junit.xml
+        title: JUnit XML
+        expire: 1d
     script: |
       echo "running unit suite"
-      test -s app/deps.txt
+      mkdir -p reports/unit; rows= cases= failed=0 n=0
+      t() {
+        n=$((n + 1))
+        if "${@:2}" >/dev/null 2>&1; then rows="$rows<tr><td class=ok>✓</td><td>$1</td></tr>"; cases="$cases<testcase name=\"$1\"/>"
+        else rows="$rows<tr><td class=bad>✗</td><td>$1</td></tr>"; cases="$cases<testcase name=\"$1\"><failure/></testcase>"; failed=$((failed + 1)); fi
+      }
+      t "dependencies are declared" test -s app/deps.txt
+      t "every dependency is pinned" bash -c '! grep -vqE "^[a-z-]+ [0-9.]+$" app/deps.txt'
+      t "the app names its version" grep -q "^main: .* v[0-9]" app/main.txt
+      t "it has a greeting" grep -q "^greeting\[" app/main.txt
+      t "every greeting is well-formed" bash -c '! grep "^greeting" app/main.txt | grep -vqE "^greeting\[[a-z]+\]: .+$"'
+      verdict="$((n - failed)) of $n passed"
+      printf '<!doctype html><meta charset=utf-8><title>Unit tests</title><style>body{font:15px/1.5 system-ui,sans-serif;margin:2rem}td{padding:.25rem .7rem;border-bottom:1px solid #ddd}.ok{color:#1a7f37}.bad{color:#cf222e}</style><h1>Unit tests: %s</h1><p>%s</p><table>%s</table>\n' \
+        "$verdict" "$(head -1 app/main.txt)" "$rows" > reports/unit/index.html
+      printf '<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="unit" tests="%s" failures="%s">%s</testsuite>\n' "$n" "$failed" "$cases" > reports/junit.xml
+      echo "unit suite: $verdict"
+      test "$failed" -eq 0
 
   layout:
     job_type: build
+    runner: showcase
     stage: checks
     checkout:
       - pipemesh.yaml
-      - docs
+      - app
     script: |
       echo "verifying repo layout"
       test -f pipemesh.yaml
-      test -d docs
+      test -d app
