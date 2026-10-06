@@ -1,4 +1,4 @@
-# demo-showcase — one pipeline touring the PipeMesh feature surface.
+# demo-showcase — one pipeline touring the Pipemesh feature surface.
 # Fake project, real runs; every node exists to demonstrate a feature.
 # The README maps each job to what it shows. Every job says what it is
 # (job_type:) and what it reads (checkout:); the job type sets the defaults.
@@ -7,6 +7,7 @@ pipeline:
   stages:
     - verify
     - build
+    - staging
     - ship
 
   jobs:
@@ -18,24 +19,12 @@ pipeline:
       stage: verify
       body: !include .pipemesh/ci.yaml
 
-    # allow_failure: a red docs check must never block shipping.
-    docs:
-      job_type: build
-      stage: build
-      needs:
-        - ci
-      allow_failure: true
-      checkout:
-        - docs
-      script: |
-        echo "checking docs"
-        test -f docs/guide.txt
-
     # Checkout + dependency cache + artifact production. A build reuses:
     # a revision whose app/ was bundled before (a revert) takes that
     # bundle. bundle waits for ci because it names it in needs.
     bundle:
       job_type: build
+      runner: linux-arm64-micro
       stage: build
       needs:
         - ci
@@ -63,6 +52,7 @@ pipeline:
     # bundle, so a bundle this lane already tested reuses that run.
     regional_test:
       job_type: build
+      runner: linux-arm64-micro
       stage: build
       matrix:
         region:
@@ -75,12 +65,37 @@ pipeline:
         echo "testing bundle in ${{ matrix.region }}"
         grep -q "demo application" dist/bundle.txt
 
+    # Staging per region: each lane stages only what ITS test lane passed,
+    # then smoke-tests the region's greeting. A bundle missing a region's
+    # greeting fails that lane's staging and stops there; the other lane
+    # ships on. The next good revision supersedes the failed one.
+    deploy_staging:
+      job_type: deploy
+      runner: linux-arm64-micro
+      production: false # a staging environment
+      stage: staging
+      matrix:
+        region:
+          - us
+          - eu
+      needs:
+        - regional_test[region=${{ matrix.region }}]
+      consumes:
+        - bundle/dist
+      script: |
+        echo "deploying to staging-${{ matrix.region }}:"
+        cat dist/bundle.txt
+        echo "smoke: staging-${{ matrix.region }} answers"
+        grep "^greeting\[${{ matrix.region }}\]: " dist/bundle.txt
+        echo "staging-${{ matrix.region }} healthy"
+
     # Lane-to-lane promotion (each region deploys only what ITS lane
-    # tested) + a local typed component invoked via setup:/with: — note
+    # staged) + a local typed component invoked via setup:/with: — note
     # the param value carrying a ${{ matrix.* }} reference: components
     # expand first, matrix interpolates the result.
     deploy:
       job_type: deploy # checks out nothing; ships a bundle new to its region
+      runner: linux-arm64-micro
       production: true
       stage: ship
       matrix:
@@ -88,7 +103,7 @@ pipeline:
           - us
           - eu
       needs:
-        - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
+        - deploy_staging[region=${{ matrix.region }}]   # only what this region's staging passed ships
       consumes:
         - bundle/dist
       setup:

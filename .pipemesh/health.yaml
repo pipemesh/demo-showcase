@@ -6,6 +6,7 @@ stages:
 jobs:
   heartbeat:
     job_type: task
+    runner: linux-arm64-micro
     stage: health
     checkout:
       - app
