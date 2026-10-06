@@ -41,3 +41,5 @@ never to `main` directly.
 Related demos: [`demo-matrix`](https://github.com/pipemesh/demo-matrix)
 (matrix in depth, both modes, break/heal lane demos); `demo-private`
 (private on purpose — the regression surface for authenticated paths).
+
+The greetings in `app/main.txt` are what each staging lane smoke-tests.
