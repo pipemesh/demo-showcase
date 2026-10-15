@@ -59,7 +59,7 @@ pipeline:
           - us
           - eu
       consumes:
-        - bundle/dist
+        DIST: bundle/dist
       checkout: false
       script: |
         echo "testing bundle in ${{ matrix.region }}"
@@ -81,7 +81,7 @@ pipeline:
       needs:
         - regional_test[region=${{ matrix.region }}]
       consumes:
-        - bundle/dist
+        DIST: bundle/dist
       script: |
         echo "deploying to staging-${{ matrix.region }}:"
         cat dist/bundle.txt
@@ -105,7 +105,7 @@ pipeline:
       needs:
         - deploy_staging[region=${{ matrix.region }}]   # only what this region's staging passed ships
       consumes:
-        - bundle/dist
+        DIST: bundle/dist
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
