@@ -69,7 +69,7 @@ pipeline:
           - us
           - eu
       consumes:
-        - bundle/dist
+        DIST: bundle/dist
       checkout: false
       script: |
         echo "testing bundle in ${{ matrix.region }}"
@@ -90,7 +90,7 @@ pipeline:
       needs:
         - regional_test[region=${{ matrix.region }}]   # only what this region's lane tested ships
       consumes:
-        - bundle/dist
+        DIST: bundle/dist
       setup:
         - uses: ./.pipemesh/components/announce.yaml
           with:
