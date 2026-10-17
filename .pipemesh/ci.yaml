@@ -7,6 +7,7 @@ stages:
 jobs:
   lint:
     job_type: build
+    runner: linux-arm64-micro
     stage: checks
     checkout:
       - app
@@ -16,6 +17,7 @@ jobs:
 
   unit:
     job_type: build
+    runner: linux-arm64-micro
     stage: checks
     checkout:
       - app
@@ -29,11 +31,12 @@ jobs:
 
   layout:
     job_type: build
+    runner: linux-arm64-micro
     stage: checks
     checkout:
       - pipemesh.yaml
-      - docs
+      - app
     script: |
       echo "verifying repo layout"
       test -f pipemesh.yaml
-      test -d docs
+      test -d app
