@@ -5,7 +5,9 @@ stages:
 
 jobs:
   heartbeat:
-    job_type: task
+    # A build that never skips: the check is the point of every run.
+    job_type: build
+    skip: never
     runner: showcase
     stage: health
     checkout:
